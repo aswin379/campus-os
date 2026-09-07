@@ -1,0 +1,26 @@
+# This is YOUR (the vendor's) service — deployed once, on your own
+# infrastructure, separate from any client's ERP deployment. Every client
+# instance's server calls out to this over HTTPS to check in.
+#
+# Usage: from this directory, `docker compose up -d --build`
+# Put this behind your own reverse proxy (e.g. Caddy, same pattern as
+# docs/DEPLOYMENT.md at the repo root) for HTTPS — this container itself
+# only serves plain HTTP.
+
+services:
+  license-server:
+    build:
+      context: ../..
+      dockerfile: apps/license-server/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 4100
+      DB_PATH: /repo/apps/license-server/data/licenses.json
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env before running docker compose}
+    ports:
+      - "4100:4100"
+    volumes:
+      - license_data:/repo/apps/license-server/data
+
+volumes:
+  license_data:

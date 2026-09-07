@@ -1,0 +1,19 @@
+{
+	email {$LETSENCRYPT_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip zstd
+
+	# Preserve the full /api/v1/... path when proxying — the server mounts
+	# routes at that exact prefix (see apps/server/src/app.ts), unlike
+	# `handle_path` which would strip it before forwarding.
+	@api path /api/*
+	handle @api {
+		reverse_proxy server:4000
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}

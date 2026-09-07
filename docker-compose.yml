@@ -1,0 +1,99 @@
+# For day-to-day local development, `postgres` is all you need — run the
+# apps directly with `npm run dev` against it (see .env.example).
+#
+# `server` and `web` are here so the containerized deployment path itself
+# can be tested locally before moving to a hosted server: `docker compose
+# up --build` runs the whole stack the way it would run in production,
+# proving env-var-only configuration actually works end to end.
+#
+# The `server` image's runtime stage deliberately excludes migration tooling
+# (see docs/OPERATIONS.md — no auto-migrate-on-boot, by design). Before the
+# first `up`, run migrations + seed once against a fresh database using the
+# `build` stage, which already has node-pg-migrate and the migration files:
+#   docker compose run --rm migrate
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: erp_password
+      POSTGRES_DB: erp_diploma
+    ports:
+      - "5432:5432"
+    volumes:
+      - erp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_diploma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off: `docker compose run --rm migrate` — not started by `up`.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: build
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://erp_user:erp_password@postgres:5432/erp_diploma
+      DATABASE_SSL: "false"
+      APP_BASE_URL: http://localhost:4000
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env before running docker compose}
+      COOKIE_SECURE: "false"
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_PATH: /repo/data/uploads
+      SMS_PROVIDER: console
+      EMAIL_PROVIDER: console
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@institute.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in .env before running docker compose}
+    working_dir: /repo
+    entrypoint: ["sh", "-c", "npm run migrate --workspace=apps/server && npm run seed --workspace=apps/server"]
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://erp_user:erp_password@postgres:5432/erp_diploma
+      DATABASE_SSL: "false"
+      APP_BASE_URL: http://localhost:4000
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env before running docker compose}
+      COOKIE_SECURE: "false"
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_PATH: /repo/data/uploads
+      SMS_PROVIDER: console
+      EMAIL_PROVIDER: console
+      VENDOR_SUPPORT_CONTACT: ${VENDOR_SUPPORT_CONTACT:-}
+      LICENSE_SERVER_URL: ${LICENSE_SERVER_URL:-}
+      LICENSE_KEY: ${LICENSE_KEY:-}
+    ports:
+      - "4000:4000"
+    volumes:
+      - erp_data:/repo/data
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:4000/api/v1
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
+
+volumes:
+  erp_pgdata:
+  erp_data:

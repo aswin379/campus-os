@@ -1,0 +1,121 @@
+# Standalone production stack — deliberately NOT layered on top of
+# docker-compose.yml via `-f base.yml -f this.yml`. Docker Compose's merge
+# rules append/merge sequence fields like `ports` across layered files rather
+# than replacing them (see https://docs.docker.com/reference/compose-file/merge/)
+# — an override with `ports: []` is a silent no-op, not a way to un-publish a
+# port, and getting that wrong here means Postgres ends up reachable from the
+# public internet. Being a complete, self-contained file removes that risk
+# entirely: nothing is published except Caddy's 80/443, full stop.
+#
+# Usage (see docs/DEPLOYMENT.md for the full runbook):
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Requires DOMAIN and LETSENCRYPT_EMAIL set in .env, and DNS for DOMAIN
+# already pointed at this server's public IP before starting Caddy, or the
+# certificate request will fail.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env before running docker compose}
+      POSTGRES_DB: erp_diploma
+    volumes:
+      - erp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_diploma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off: `docker compose -f docker-compose.prod.yml run --rm migrate`.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: build
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://erp_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env before running docker compose}@postgres:5432/erp_diploma
+      DATABASE_SSL: "false"
+      APP_BASE_URL: https://${DOMAIN:?set DOMAIN in .env before running docker compose}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env before running docker compose}
+      COOKIE_SECURE: "true"
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_PATH: /repo/data/uploads
+      SMS_PROVIDER: console
+      EMAIL_PROVIDER: console
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@institute.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in .env before running docker compose}
+    working_dir: /repo
+    entrypoint: ["sh", "-c", "npm run migrate --workspace=apps/server && npm run seed --workspace=apps/server"]
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://erp_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env before running docker compose}@postgres:5432/erp_diploma
+      DATABASE_SSL: "false"
+      APP_BASE_URL: https://${DOMAIN:?set DOMAIN in .env before running docker compose}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env before running docker compose}
+      COOKIE_SECURE: "true"
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_PATH: /repo/data/uploads
+      SMS_PROVIDER: console
+      EMAIL_PROVIDER: console
+      VENDOR_SUPPORT_CONTACT: ${VENDOR_SUPPORT_CONTACT:-}
+      # See apps/license-server/README.md — issued once per client, not
+      # built/deployed as part of this stack (it's the vendor's own
+      # separately-hosted service, shared across all client deployments).
+      LICENSE_SERVER_URL: ${LICENSE_SERVER_URL:-}
+      LICENSE_KEY: ${LICENSE_KEY:-}
+    # No `ports:` — only reachable from other containers on this compose
+    # network (as `server:4000`), never published to the host/internet.
+    volumes:
+      - erp_data:/repo/data
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: https://${DOMAIN:?set DOMAIN in .env before running docker compose}/api/v1
+    restart: unless-stopped
+    depends_on:
+      - server
+    # No `ports:` — same reasoning as `server` above; Caddy reaches it as
+    # `web:80`.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+      - web
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env before running docker compose}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:?set LETSENCRYPT_EMAIL in .env before running docker compose}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  erp_pgdata:
+  erp_data:
+  caddy_data:
+  caddy_config:

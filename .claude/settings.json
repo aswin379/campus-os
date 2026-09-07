@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(code-review)",
+      "Skill(code-review:*)",
+      "Bash(npm run *)",
+      "Bash(node tools/license/issue-license.mjs --licensedTo 'Sunrise Polytechnic Institute' --instanceId 4ff7fda9-8f4f-4739-bf0f-6d0e1c5b9076 --days 20 --out apps/server/data/license.json)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s https://raw.githubusercontent.com/compose-spec/compose-spec/main/13-merge.md)",
+      "Bash(curl -s https://raw.githubusercontent.com/compose-spec/compose-spec/main/build.md)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(disown)",
+      "Bash(sleep 6 && cat /tmp/dev-run.log)",
+      "Read(//tmp/**)",
+      "PowerShell(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object {$_.LocalPort -in 4000,5173} | Select-Object LocalPort,OwningProcess)",
+      "Bash(node verify_discount.mjs)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
