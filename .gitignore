@@ -5,3 +5,4 @@ build/
 *.log
 data/
 .DS_Store
+.claude/settings.local.json

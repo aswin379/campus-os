@@ -392,6 +392,36 @@ export async function getTransactionsForEnrollment(enrollmentId: string): Promis
   return rows;
 }
 
+export interface RecentTransactionRow {
+  id: string;
+  receipt_number: string;
+  payment_date: string;
+  amount: string;
+  payment_mode: string;
+  transaction_type: string;
+  admission_number: string;
+  first_name: string;
+  last_name: string;
+  course_name: string;
+}
+
+export async function getRecentTransactions(limit: number): Promise<RecentTransactionRow[]> {
+  const { rows } = await pool.query<RecentTransactionRow>(
+    `select
+       ft.id, ft.receipt_number, ft.payment_date, ft.amount, ft.payment_mode, ft.transaction_type,
+       s.admission_number, s.first_name, s.last_name, c.name as course_name
+     from fee_transactions ft
+     join student_enrollments se on se.id = ft.enrollment_id
+     join students s on s.id = se.student_id
+     join course_batches cb on cb.id = se.course_batch_id
+     join courses c on c.id = cb.course_id
+     order by ft.created_at desc
+     limit ?`,
+    [limit],
+  );
+  return rows;
+}
+
 export interface AllocationRow {
   id: string;
   fee_transaction_id: string;

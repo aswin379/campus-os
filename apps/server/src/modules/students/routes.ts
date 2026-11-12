@@ -13,6 +13,8 @@ studentsRouter.use(authenticate);
 
 studentsRouter.get('/', authorize('students.view'), asyncHandler(controller.listStudents));
 studentsRouter.get('/:id', authorize('students.view'), asyncHandler(controller.getStudent));
+studentsRouter.get('/:id/remarks', authorize('students.remarks'), asyncHandler(controller.listRemarks));
+studentsRouter.post('/:id/remarks', authorize('students.remarks'), asyncHandler(controller.addRemark));
 studentsRouter.get('/:id/photo', authorize('students.view'), asyncHandler(controller.getPhoto));
 studentsRouter.post('/', authorize('students.create'), asyncHandler(controller.createStudent));
 studentsRouter.patch('/:id', authorize('students.edit'), asyncHandler(controller.updateStudent));

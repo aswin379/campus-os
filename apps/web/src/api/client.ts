@@ -19,6 +19,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The server's generic 400 handler (parseOr400) always sends the same
+ * `error: 'Invalid request'` string — the actual reason lives in `details`,
+ * a zod `.flatten()` shape ({ formErrors, fieldErrors }). Without this, every
+ * validation failure across the whole app shows the same useless message
+ * regardless of which field or rule actually failed.
+ */
+function describeValidationDetails(details: unknown): string | undefined {
+  if (!details || typeof details !== 'object') return undefined;
+  const { formErrors, fieldErrors } = details as { formErrors?: string[]; fieldErrors?: Record<string, string[]> };
+  const parts: string[] = [...(formErrors ?? [])];
+  for (const [field, messages] of Object.entries(fieldErrors ?? {})) {
+    if (messages?.length) parts.push(`${field}: ${messages.join(', ')}`);
+  }
+  return parts.length ? parts.join('; ') : undefined;
+}
+
+function errorMessageFromBody(body: { error?: string; details?: unknown } | undefined, fallback: string): string {
+  return describeValidationDetails(body?.details) ?? body?.error ?? fallback;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -36,7 +57,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const body = res.headers.get('content-type')?.includes('application/json') ? await res.json() : undefined;
 
   if (!res.ok) {
-    throw new ApiError(res.status, body?.error ?? res.statusText, body?.details);
+    throw new ApiError(res.status, errorMessageFromBody(body, res.statusText), body?.details);
   }
 
   return body as T;
@@ -55,7 +76,7 @@ export const api = {
     const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', credentials: 'include', body: formData });
     if (res.status === 204) return undefined as T;
     const body = res.headers.get('content-type')?.includes('application/json') ? await res.json() : undefined;
-    if (!res.ok) throw new ApiError(res.status, body?.error ?? res.statusText, body?.details);
+    if (!res.ok) throw new ApiError(res.status, errorMessageFromBody(body, res.statusText), body?.details);
     return body as T;
   },
 };

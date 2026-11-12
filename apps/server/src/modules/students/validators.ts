@@ -10,6 +10,14 @@ const contactSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
+const qualificationSchema = z.object({
+  qualificationName: z.string().min(1),
+  institution: z.string().optional(),
+  boardOrUniversity: z.string().optional(),
+  yearOfPassing: z.string().optional(),
+  percentageOrGrade: z.string().optional(),
+});
+
 export const createStudentSchema = z.object({
   admissionNumber: z.string().min(1).optional(),
   firstName: z.string().min(1),
@@ -25,6 +33,7 @@ export const createStudentSchema = z.object({
   state: z.string().optional(),
   pincode: z.string().optional(),
   contacts: z.array(contactSchema).default([]),
+  qualifications: z.array(qualificationSchema).default([]),
 });
 
 export const updateStudentSchema = z.object({
@@ -48,6 +57,11 @@ export const updateStudentSchema = z.object({
   pincode: z.string().nullable().optional(),
   status: z.enum(['enquiry', 'active', 'completed', 'dropped', 'suspended']).optional(),
   contacts: z.array(contactSchema).optional(),
+  qualifications: z.array(qualificationSchema).optional(),
+});
+
+export const addRemarkSchema = z.object({
+  remark: z.string().trim().min(1).max(2000),
 });
 
 export const listStudentsQuerySchema = z.object({

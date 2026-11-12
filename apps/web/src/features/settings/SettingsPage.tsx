@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError } from '../../api/client';
+import { api, ApiError, BASE_URL } from '../../api/client';
 
 interface InstituteSettingsDto {
   instituteName: string;
   instituteAddress: string;
   institutePhone: string;
   instituteEmail: string;
+  hasLogo: boolean;
   receiptPrefix: string;
   receiptTermsText: string;
 }
@@ -15,6 +16,8 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [logoVersion, setLogoVersion] = useState(0);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     api
@@ -22,6 +25,25 @@ export function SettingsPage() {
       .then(setSettings)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load settings'));
   }, []);
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploadingLogo(true);
+    const formData = new FormData();
+    formData.append('logo', file);
+    try {
+      await api.upload('/settings/logo', formData);
+      setSettings((prev) => (prev ? { ...prev, hasLogo: true } : prev));
+      setLogoVersion((v) => v + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
 
   function update(field: keyof InstituteSettingsDto, value: string) {
     setSettings((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -94,6 +116,36 @@ export function SettingsPage() {
               onChange={(e) => update('instituteEmail', e.target.value)}
               style={{ width: '100%' }}
             />
+          </div>
+        </div>
+
+        <div className="card">
+          <h2 className="mt-0">Branding</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {settings.hasLogo ? (
+              <img
+                src={`${BASE_URL}/settings/logo?v=${logoVersion}`}
+                alt="Institute logo"
+                className="avatar-lg"
+                style={{ objectFit: 'contain', background: 'var(--color-bg)' }}
+              />
+            ) : (
+              <div
+                className="avatar-lg text-muted"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, background: 'var(--color-bg)' }}
+              >
+                No logo
+              </div>
+            )}
+            <div>
+              <label htmlFor="logo" className="mt-0">
+                Upload logo
+              </label>
+              <input id="logo" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleLogoChange} disabled={uploadingLogo} />
+              <p className="text-muted" style={{ fontSize: 13 }}>
+                JPEG, PNG, or WebP, up to 2MB. Printed on fee receipts.
+              </p>
+            </div>
           </div>
         </div>
 

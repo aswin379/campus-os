@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { api, ApiError } from '../../api/client';
+import { useEffect, useState, type FormEvent } from 'react';
+import { api, ApiError, BASE_URL } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import { EnrollmentFeePanel } from './EnrollmentFeePanel';
 
 interface StudentSearchResult {
@@ -9,12 +10,40 @@ interface StudentSearchResult {
   lastName: string;
 }
 
+interface RecentTransactionDto {
+  id: string;
+  receiptNumber: string;
+  paymentDate: string;
+  amount: number;
+  paymentMode: string;
+  transactionType: string;
+  studentName: string;
+  admissionNumber: string;
+  courseName: string;
+}
+
 export function FeeCollectionPage() {
+  const { hasPermission } = useAuth();
+  const canReprint = hasPermission('fees.receipt.reprint');
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<StudentSearchResult[]>([]);
   const [selected, setSelected] = useState<StudentSearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [recent, setRecent] = useState<RecentTransactionDto[]>([]);
+  const [recentError, setRecentError] = useState<string | null>(null);
+
+  async function refreshRecent() {
+    try {
+      setRecent(await api.get<RecentTransactionDto[]>('/fee-transactions/recent'));
+    } catch (err) {
+      setRecentError(err instanceof ApiError ? err.message : 'Failed to load recent transactions');
+    }
+  }
+
+  useEffect(() => {
+    refreshRecent();
+  }, []);
 
   async function handleSearch(e: FormEvent) {
     e.preventDefault();
@@ -83,6 +112,62 @@ export function FeeCollectionPage() {
           </table>
         )}
       </div>
+
+      {!selected && (
+        <>
+          <h2 className="section-heading">Recent Transactions</h2>
+          <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+            {recentError && (
+              <div className="alert alert-error" style={{ margin: 'var(--space-3)' }}>
+                {recentError}
+              </div>
+            )}
+            <table>
+              <thead>
+                <tr>
+                  <th>Receipt #</th>
+                  <th>Date</th>
+                  <th>Student</th>
+                  <th>Course</th>
+                  <th>Amount</th>
+                  <th>Mode</th>
+                  {canReprint && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {recent.length === 0 && !recentError && (
+                  <tr>
+                    <td colSpan={canReprint ? 7 : 6} className="text-muted" style={{ textAlign: 'center', padding: 24 }}>
+                      No transactions yet.
+                    </td>
+                  </tr>
+                )}
+                {recent.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.receiptNumber}</td>
+                    <td>{t.paymentDate}</td>
+                    <td>
+                      {t.studentName} <span className="text-muted">({t.admissionNumber})</span>
+                    </td>
+                    <td>{t.courseName}</td>
+                    <td>
+                      {t.transactionType === 'void' ? '- ' : ''}Rs. {t.amount.toFixed(2)}
+                    </td>
+                    <td>{t.paymentMode}</td>
+                    {canReprint && (
+                      <td>
+                        <a href={`${BASE_URL}/fee-transactions/${t.id}/receipt`} target="_blank" rel="noreferrer">
+                          Receipt
+                        </a>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {selected && (
         <>

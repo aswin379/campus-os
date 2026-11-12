@@ -146,6 +146,29 @@ export async function addDiscount(
   if (plan) {
     throw new HttpError(400, 'Cannot add a discount after the fee plan has already been generated for this enrollment');
   }
+
+  const info = await getEnrollmentCourseInfo(input.enrollmentId);
+  if (!info) throw new HttpError(404, 'Enrollment not found');
+
+  // Without this cap, a discount larger than the course fee silently zeroes
+  // out every installment once the plan is generated (distributeDiscount has
+  // nowhere left to apply the excess) — the plan "generates" successfully
+  // but comes out empty and totalPayable 0, with nothing telling the person
+  // who approved the discount that anything is wrong. Reject it up front
+  // instead, against whatever fee structure would actually apply.
+  const structure = await repo.getActiveFeeStructureForCourse(info.courseId, info.enrollmentDate);
+  if (structure) {
+    const existing = await repo.getDiscountsForEnrollment(input.enrollmentId);
+    const totalDiscount = existing.reduce((s, d) => s + Number(d.amount), 0) + input.amount;
+    const total = Number(structure.total_amount);
+    if (totalDiscount > total + AMOUNT_TOLERANCE) {
+      throw new HttpError(
+        400,
+        `Total discount (${totalDiscount.toFixed(2)}) cannot exceed the course fee (${total.toFixed(2)})`,
+      );
+    }
+  }
+
   await repo.addDiscount({ ...input, approvedBy: actorId });
   await recordAudit({
     actorStaffId: actorId,
@@ -224,7 +247,28 @@ export async function generateFeePlan(actorId: string, enrollmentId: string): Pr
   }
 
   const structure = await repo.getActiveFeeStructureForCourse(info.courseId, info.enrollmentDate);
-  if (!structure) throw new HttpError(400, 'No active fee structure defined for this course');
+  if (!structure) {
+    // getActiveFeeStructureForCourse silently returns nothing whether the
+    // course has no fee structure at all, has one but it's deactivated, or
+    // has one that simply hasn't taken effect yet as of this enrollment's
+    // date — three very different situations that all deserve a different,
+    // actionable message instead of one generic "no active fee structure"
+    // that reads as "you forgot to add one" even when you didn't.
+    const all = await repo.listFeeStructuresForCourse(info.courseId);
+    if (all.length === 0) {
+      throw new HttpError(400, 'No fee structure defined for this course yet — add one from the course page first.');
+    }
+    const active = all.filter((s) => s.is_active);
+    if (active.length === 0) {
+      throw new HttpError(400, 'This course has a fee structure, but it is deactivated — activate it from the course page.');
+    }
+    const earliest = active.reduce((min, s) => (s.effective_from < min ? s.effective_from : min), active[0]!.effective_from);
+    throw new HttpError(
+      400,
+      `This course's fee structure isn't effective until ${earliest}, which is after this enrollment's date (${info.enrollmentDate}). ` +
+        `Either backdate the fee structure's "Effective from" date, or use a later enrollment date.`,
+    );
+  }
 
   const [installmentDefs, charges, discounts] = await Promise.all([
     repo.getInstallmentsForStructure(structure.id),
@@ -524,6 +568,33 @@ export async function getTransaction(id: string): Promise<FeeTransactionDto> {
   const row = await repo.getTransactionById(id);
   if (!row) throw new HttpError(404, 'Transaction not found');
   return toTransactionDto(row);
+}
+
+export interface RecentTransactionDto {
+  id: string;
+  receiptNumber: string;
+  paymentDate: string;
+  amount: number;
+  paymentMode: string;
+  transactionType: string;
+  studentName: string;
+  admissionNumber: string;
+  courseName: string;
+}
+
+export async function listRecentTransactions(limit: number): Promise<RecentTransactionDto[]> {
+  const rows = await repo.getRecentTransactions(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    receiptNumber: r.receipt_number,
+    paymentDate: r.payment_date,
+    amount: Number(r.amount),
+    paymentMode: r.payment_mode,
+    transactionType: r.transaction_type,
+    studentName: `${r.first_name} ${r.last_name}`,
+    admissionNumber: r.admission_number,
+    courseName: r.course_name,
+  }));
 }
 
 export async function getTodaysCollectionTotal(date: string): Promise<number> {

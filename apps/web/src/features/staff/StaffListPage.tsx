@@ -18,7 +18,7 @@ interface StaffDto {
 }
 
 export function StaffListPage() {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [staff, setStaff] = useState<StaffDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +26,9 @@ export function StaffListPage() {
   const [resetTargetId, setResetTargetId] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [editRolesTargetId, setEditRolesTargetId] = useState<string | null>(null);
+  const [editRoleId, setEditRoleId] = useState('');
+  const [savingRoles, setSavingRoles] = useState(false);
   const canCreate = hasPermission('staff.create');
   const canEdit = hasPermission('staff.edit');
 
@@ -83,6 +86,26 @@ export function StaffListPage() {
     }
   }
 
+  async function handleSaveRoles(e: FormEvent) {
+    e.preventDefault();
+    if (!editRolesTargetId) return;
+    setError(null);
+    if (!editRoleId) {
+      setError('Select a role');
+      return;
+    }
+    setSavingRoles(true);
+    try {
+      await api.patch(`/staff/${editRolesTargetId}`, { roleIds: [editRoleId] });
+      setEditRolesTargetId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update role');
+    } finally {
+      setSavingRoles(false);
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -98,7 +121,7 @@ export function StaffListPage() {
               <th>Email</th>
               <th>Roles</th>
               <th>Status</th>
-              {canEdit && <th></th>}
+              {canEdit && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -106,28 +129,45 @@ export function StaffListPage() {
               <tr key={s.id}>
                 <td>{s.fullName}</td>
                 <td>{s.email}</td>
-                <td>{s.isSuperAdmin ? 'Super Admin' : roles.filter((r) => s.roleIds.includes(r.id)).map((r) => r.name).join(', ')}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {s.isSuperAdmin ? 'Super Admin' : (roles.find((r) => s.roleIds.includes(r.id))?.name ?? '—')}
+                </td>
                 <td>
                   <StatusBadge status={s.isActive ? 'active' : 'inactive'} />
                 </td>
                 {canEdit && (
-                  <td>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <div className="subcard-row" style={{ flexWrap: 'nowrap' }}>
                       {!s.isSuperAdmin && (
                         <button type="button" className="btn-secondary" onClick={() => toggleActive(s)}>
                           {s.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => {
-                          setResetTargetId(s.id);
-                          setResetPassword('');
-                        }}
-                      >
-                        Reset Password
-                      </button>
+                      {!s.isSuperAdmin && s.id !== user?.id && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => {
+                            setError(null);
+                            setEditRolesTargetId(s.id);
+                            setEditRoleId(s.roleIds[0] ?? '');
+                          }}
+                        >
+                          Edit Role
+                        </button>
+                      )}
+                      {!s.isSuperAdmin && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => {
+                            setResetTargetId(s.id);
+                            setResetPassword('');
+                          }}
+                        >
+                          Reset Password
+                        </button>
+                      )}
                     </div>
                   </td>
                 )}
@@ -161,6 +201,30 @@ export function StaffListPage() {
             <p className="text-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
               This immediately signs the staff member out of any devices they're currently logged in on.
             </p>
+          </form>
+        </div>
+      )}
+
+      {editRolesTargetId && (
+        <div className="card">
+          <h2 className="mt-0">Edit Role for {staff.find((s) => s.id === editRolesTargetId)?.fullName}</h2>
+          <form onSubmit={handleSaveRoles}>
+            <div className="subcard-row">
+              <select value={editRoleId} onChange={(e) => setEditRoleId(e.target.value)} required style={{ width: 'auto' }}>
+                <option value="">Select a role</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" disabled={savingRoles}>
+                {savingRoles ? 'Saving…' : 'Save Role'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setEditRolesTargetId(null)}>
+                Cancel
+              </button>
+            </div>
           </form>
         </div>
       )}

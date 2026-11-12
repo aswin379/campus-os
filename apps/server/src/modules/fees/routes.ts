@@ -28,6 +28,7 @@ feePlansRouter.get('/summary', canReadFeeData, asyncHandler(controller.getFeeSum
 export const feeTransactionsRouter = Router();
 feeTransactionsRouter.use(authenticate);
 feeTransactionsRouter.get('/', canReadFeeData, asyncHandler(controller.listTransactions));
+feeTransactionsRouter.get('/recent', canReadFeeData, asyncHandler(controller.listRecentTransactions));
 feeTransactionsRouter.post('/', authorize('fees.collect'), asyncHandler(controller.collectPayment));
 feeTransactionsRouter.post('/:id/void', authorize('fees.edit'), asyncHandler(controller.voidTransaction));
 feeTransactionsRouter.get('/:id/receipt', authorize('fees.receipt.reprint'), asyncHandler(controller.getReceipt));

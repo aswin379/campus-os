@@ -121,6 +121,11 @@ label {
   margin-top: var(--space-3);
 }
 
+.required-mark {
+  color: var(--color-danger);
+  margin-left: 2px;
+}
+
 input,
 select,
 textarea {
@@ -257,6 +262,15 @@ tbody tr:hover {
   padding: var(--space-5) var(--space-4);
   display: flex;
   flex-direction: column;
+  /* Pinned to the viewport so nav links and the log-out button stay put
+     while .main-content scrolls — without this, a long page (e.g. Audit
+     Log) scrolls the whole flex row together, dragging the sidebar's
+     bottom (log out) out of view along with it. Own overflow-y in case a
+     future nav list is ever taller than the viewport. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar-brand {

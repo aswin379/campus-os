@@ -32,6 +32,93 @@ interface StudentDto {
   state: string | null;
   pincode: string | null;
   contacts: StudentContact[];
+  qualifications: StudentQualification[];
+}
+
+interface StudentQualification {
+  qualificationName: string;
+  institution: string;
+  boardOrUniversity: string;
+  yearOfPassing: string;
+  percentageOrGrade: string;
+}
+
+interface StudentRemark {
+  id: string;
+  remark: string;
+  createdByName: string;
+  createdAt: string;
+}
+
+const emptyQualification: StudentQualification = {
+  qualificationName: '',
+  institution: '',
+  boardOrUniversity: '',
+  yearOfPassing: '',
+  percentageOrGrade: '',
+};
+
+function StudentRemarksPanel({ studentId }: { studentId: string }) {
+  const { hasPermission } = useAuth();
+  const canAdd = hasPermission('students.remarks');
+  const [remarks, setRemarks] = useState<StudentRemark[]>([]);
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function refresh() {
+    return api.get<StudentRemark[]>(`/students/${studentId}/remarks`).then(setRemarks);
+  }
+
+  useEffect(() => {
+    refresh().catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load remarks'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId]);
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!text.trim()) return;
+    setSaving(true);
+    try {
+      await api.post(`/students/${studentId}/remarks`, { remark: text.trim() });
+      setText('');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to add remark');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      {error && <div className="alert alert-error">{error}</div>}
+      {canAdd && (
+        <form onSubmit={handleAdd} className="subcard-row" style={{ marginBottom: 'var(--space-3)' }}>
+          <input
+            placeholder="Add a remark about this student"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={2000}
+            style={{ flex: 1 }}
+          />
+          <button type="submit" disabled={saving || !text.trim()}>
+            {saving ? 'Adding…' : 'Add Remark'}
+          </button>
+        </form>
+      )}
+      {remarks.length === 0 && <p className="text-muted mt-0">No remarks yet.</p>}
+      {remarks.map((r) => (
+        <div key={r.id} className="subcard" style={{ marginBottom: 'var(--space-2)' }}>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{r.remark}</div>
+          <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+            {r.createdByName} · {new Date(r.createdAt).toLocaleString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const emptyContact: StudentContact = {
@@ -164,6 +251,7 @@ export function StudentFormPage() {
   const [pincode, setPincode] = useState('');
   const [status, setStatus] = useState('enquiry');
   const [contacts, setContacts] = useState<StudentContact[]>([emptyContact]);
+  const [qualifications, setQualifications] = useState<StudentQualification[]>([]);
   const [hasPhoto, setHasPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -192,6 +280,15 @@ export function StudentFormPage() {
           ? s.contacts.map((c) => ({ ...c, relation: c.relation ?? '', email: c.email ?? '' }))
           : [emptyContact],
       );
+      setQualifications(
+        s.qualifications.map((q) => ({
+          qualificationName: q.qualificationName,
+          institution: q.institution ?? '',
+          boardOrUniversity: q.boardOrUniversity ?? '',
+          yearOfPassing: q.yearOfPassing ?? '',
+          percentageOrGrade: q.percentageOrGrade ?? '',
+        })),
+      );
       setHasPhoto(s.hasPhoto);
     });
   }, [id]);
@@ -211,6 +308,24 @@ export function StudentFormPage() {
   function removeContact(index: number) {
     setContacts((prev) => prev.filter((_, i) => i !== index));
   }
+
+  function updateQualification(index: number, patch: Partial<StudentQualification>) {
+    setQualifications((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
+  }
+
+  function removeQualification(index: number) {
+    setQualifications((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const qualificationsPayload = qualifications
+    .filter((q) => q.qualificationName.trim())
+    .map((q) => ({
+      qualificationName: q.qualificationName.trim(),
+      institution: q.institution.trim() || undefined,
+      boardOrUniversity: q.boardOrUniversity.trim() || undefined,
+      yearOfPassing: q.yearOfPassing.trim() || undefined,
+      percentageOrGrade: q.percentageOrGrade.trim() || undefined,
+    }));
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -242,6 +357,7 @@ export function StudentFormPage() {
           pincode: pincode || null,
           status,
           contacts: contactsPayload,
+          qualifications: qualificationsPayload,
         });
         setSuccess('Student updated.');
       } else {
@@ -260,6 +376,7 @@ export function StudentFormPage() {
           state: state || undefined,
           pincode: pincode || undefined,
           contacts: contactsPayload,
+          qualifications: qualificationsPayload,
         });
         navigate(`/students/${created.id}`);
         return;
@@ -320,7 +437,10 @@ export function StudentFormPage() {
           <div className="card">
             <div className="form-grid">
               <div>
-                <label htmlFor="admissionNumber">Admission number</label>
+                <label htmlFor="admissionNumber">
+                  Admission number
+                  {isEdit && <span className="required-mark">*</span>}
+                </label>
                 <input
                   id="admissionNumber"
                   name="admissionNumber"
@@ -331,11 +451,15 @@ export function StudentFormPage() {
                 />
               </div>
               <div>
-                <label htmlFor="firstName">First name</label>
+                <label htmlFor="firstName">
+                  First name<span className="required-mark">*</span>
+                </label>
                 <input id="firstName" name="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
               </div>
               <div>
-                <label htmlFor="lastName">Last name</label>
+                <label htmlFor="lastName">
+                  Last name<span className="required-mark">*</span>
+                </label>
                 <input id="lastName" name="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               </div>
               <div>
@@ -387,7 +511,9 @@ export function StudentFormPage() {
                 />
               </div>
               <div>
-                <label htmlFor="admissionDate">Admission date</label>
+                <label htmlFor="admissionDate">
+                  Admission date<span className="required-mark">*</span>
+                </label>
                 <input
                   id="admissionDate"
                   name="admissionDate"
@@ -448,9 +574,9 @@ export function StudentFormPage() {
                     <option value="emergency">Emergency</option>
                   </select>
                   <input placeholder="Relation" value={c.relation} onChange={(e) => updateContact(i, { relation: e.target.value })} />
-                  <input placeholder="Name" value={c.name} onChange={(e) => updateContact(i, { name: e.target.value })} required />
+                  <input placeholder="Name *" value={c.name} onChange={(e) => updateContact(i, { name: e.target.value })} required />
                   <input
-                    placeholder="Phone"
+                    placeholder="Phone *"
                     value={c.phone}
                     onChange={(e) => updateContact(i, { phone: e.target.value.replace(/\D/g, '') })}
                     inputMode="numeric"
@@ -473,6 +599,46 @@ export function StudentFormPage() {
             </button>
           </div>
 
+          <div className="card">
+            <h3 className="mt-0">Academic & Other Qualifications</h3>
+            {qualifications.length === 0 && <p className="text-muted mt-0">No qualifications added yet.</p>}
+            {qualifications.map((q, i) => (
+              <div key={i} className="subcard">
+                <div className="subcard-row">
+                  <input
+                    placeholder="Qualification *"
+                    value={q.qualificationName}
+                    onChange={(e) => updateQualification(i, { qualificationName: e.target.value })}
+                  />
+                  <input placeholder="Institution" value={q.institution} onChange={(e) => updateQualification(i, { institution: e.target.value })} />
+                  <input
+                    placeholder="Board / University"
+                    value={q.boardOrUniversity}
+                    onChange={(e) => updateQualification(i, { boardOrUniversity: e.target.value })}
+                  />
+                  <input
+                    placeholder="Year"
+                    value={q.yearOfPassing}
+                    onChange={(e) => updateQualification(i, { yearOfPassing: e.target.value })}
+                    style={{ width: 90 }}
+                  />
+                  <input
+                    placeholder="% / Grade"
+                    value={q.percentageOrGrade}
+                    onChange={(e) => updateQualification(i, { percentageOrGrade: e.target.value })}
+                    style={{ width: 110 }}
+                  />
+                  <button type="button" className="btn-danger-text" onClick={() => removeQualification(i)}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+            <button type="button" className="btn-secondary" onClick={() => setQualifications((prev) => [...prev, { ...emptyQualification }])}>
+              + Add qualification
+            </button>
+          </div>
+
           <div className="form-actions">
             <button type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save'}
@@ -489,6 +655,13 @@ export function StudentFormPage() {
 
           <h2 className="section-heading">Examination & Results</h2>
           <StudentExamPanel key={`exams-${enrollmentVersion}`} studentId={id!} />
+
+          {hasPermission('students.remarks') && (
+            <>
+              <h2 className="section-heading">Remarks</h2>
+              <StudentRemarksPanel studentId={id!} />
+            </>
+          )}
         </>
       )}
     </div>

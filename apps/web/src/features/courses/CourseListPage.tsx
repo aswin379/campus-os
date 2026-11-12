@@ -19,6 +19,13 @@ export function CourseListPage() {
   const [courses, setCourses] = useState<CourseDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', code: '', durationValue: 6, durationUnit: 'months' });
+  const [search, setSearch] = useState('');
+
+  const filteredCourses = courses.filter((c) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
+  });
 
   async function refresh() {
     setCourses(await api.get<CourseDto[]>('/courses'));
@@ -46,42 +53,6 @@ export function CourseListPage() {
         <h1>Courses</h1>
       </div>
       {error && <div className="alert alert-error">{error}</div>}
-
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Duration</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {courses.length === 0 && (
-              <tr>
-                <td colSpan={4} className="text-muted" style={{ textAlign: 'center', padding: 24 }}>
-                  No courses yet.
-                </td>
-              </tr>
-            )}
-            {courses.map((c) => (
-              <tr key={c.id}>
-                <td>{c.code}</td>
-                <td>
-                  <Link to={`/courses/${c.id}`}>{c.name}</Link>
-                </td>
-                <td>
-                  {c.durationValue} {c.durationUnit}
-                </td>
-                <td>
-                  <StatusBadge status={c.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
 
       {canManage && (
         <div className="card">
@@ -119,6 +90,51 @@ export function CourseListPage() {
           </form>
         </div>
       )}
+
+      <div className="card" style={{ padding: 'var(--space-3)' }}>
+        <input
+          placeholder="Search by course name or code"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Duration</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredCourses.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-muted" style={{ textAlign: 'center', padding: 24 }}>
+                  {courses.length === 0 ? 'No courses yet.' : 'No courses match your search.'}
+                </td>
+              </tr>
+            )}
+            {filteredCourses.map((c) => (
+              <tr key={c.id}>
+                <td>{c.code}</td>
+                <td>
+                  <Link to={`/courses/${c.id}`}>{c.name}</Link>
+                </td>
+                <td>
+                  {c.durationValue} {c.durationUnit}
+                </td>
+                <td>
+                  <StatusBadge status={c.status} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

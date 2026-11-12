@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { getEnrollmentDisplayContext } from '../../lib/enrollmentContext.js';
 import { parseOr400 } from '../../lib/http.js';
 import { generateReceiptPdf } from '../../lib/pdf/receipt.js';
-import { getInstituteSettings } from '../settings/service.js';
+import { getInstituteLogo, getInstituteSettings } from '../settings/service.js';
 import * as service from './service.js';
 import {
   addDiscountSchema,
@@ -88,11 +88,18 @@ export async function listTransactions(req: Request, res: Response): Promise<voi
   res.json(await service.listTransactionsForEnrollment(enrollmentId));
 }
 
+export async function listRecentTransactions(req: Request, res: Response): Promise<void> {
+  const requested = Number(req.query.limit);
+  const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 100) : 20;
+  res.json(await service.listRecentTransactions(limit));
+}
+
 export async function getReceipt(req: Request, res: Response): Promise<void> {
   const transaction = await service.getTransaction(req.params.id!);
-  const [context, instituteSettings, original] = await Promise.all([
+  const [context, instituteSettings, logo, original] = await Promise.all([
     getEnrollmentDisplayContext(transaction.enrollmentId),
     getInstituteSettings(),
+    getInstituteLogo(),
     transaction.reversedTransactionId ? service.getTransaction(transaction.reversedTransactionId) : null,
   ]);
   if (!context) {
@@ -115,6 +122,7 @@ export async function getReceipt(req: Request, res: Response): Promise<void> {
     instituteAddress: instituteSettings.instituteAddress,
     termsText: instituteSettings.receiptTermsText,
     originalReceiptNumber: original?.receiptNumber ?? null,
+    logoBuffer: logo?.buffer ?? null,
   });
 
   res.setHeader('Content-Type', 'application/pdf');

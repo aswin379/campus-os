@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { parseOr400 } from '../../lib/http.js';
 import * as service from './service.js';
-import { createStudentSchema, listStudentsQuerySchema, updateStudentSchema } from './validators.js';
+import { addRemarkSchema, createStudentSchema, listStudentsQuerySchema, updateStudentSchema } from './validators.js';
 
 const CONTENT_TYPE_BY_EXT: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -31,6 +31,17 @@ export async function updateStudent(req: Request, res: Response): Promise<void> 
   if (!data) return;
   const updated = await service.updateStudent(req.user!.id, req.params.id!, data);
   res.json(updated);
+}
+
+export async function listRemarks(req: Request, res: Response): Promise<void> {
+  res.json(await service.listRemarks(req.params.id!));
+}
+
+export async function addRemark(req: Request, res: Response): Promise<void> {
+  const data = parseOr400(addRemarkSchema, req.body, res);
+  if (!data) return;
+  await service.addRemark(req.user!.id, req.params.id!, data.remark);
+  res.status(201).send();
 }
 
 export async function deleteStudent(req: Request, res: Response): Promise<void> {

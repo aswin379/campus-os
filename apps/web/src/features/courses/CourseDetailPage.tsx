@@ -91,9 +91,30 @@ function FeeStructureSection({ courseId }: { courseId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
+  const installmentsSum = Number(installments.reduce((s, i) => s + i.amount, 0).toFixed(2));
+  const installmentsMismatch = installments.length > 0 && Math.abs(installmentsSum - totalAmount) > 0.01;
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!(totalAmount > 0)) {
+      setError('Enter a total amount greater than zero');
+      return;
+    }
+    const emptyInstallmentIndex = installments.findIndex((i) => !(i.amount > 0));
+    if (emptyInstallmentIndex !== -1) {
+      setError(`Installment #${emptyInstallmentIndex + 1} needs an amount greater than zero`);
+      return;
+    }
+    if (installmentsMismatch) {
+      setError(`Installment amounts (${installmentsSum}) must sum to the total amount (${totalAmount})`);
+      return;
+    }
+    const emptyChargeIndex = charges.findIndex((c) => !c.name.trim() || !(c.amount > 0));
+    if (emptyChargeIndex !== -1) {
+      setError(`Additional charge #${emptyChargeIndex + 1} needs a name and an amount greater than zero`);
+      return;
+    }
     try {
       await api.post('/fee-structures', {
         courseId,
@@ -172,10 +193,21 @@ function FeeStructureSection({ courseId }: { courseId: string }) {
 
           <div style={{ marginTop: 'var(--space-3)' }}>
             <label className="mt-0">Installments (optional — leave empty for a single full-amount installment)</label>
+            {installments.length > 0 && (
+              <div className="subcard-row text-muted" style={{ fontSize: 12, fontWeight: 600 }}>
+                <span style={{ width: 24 }}>#</span>
+                <span style={{ width: 90 }}>Amount (Rs.)</span>
+                <span style={{ width: 130 }}>Due (days after enrollment)</span>
+              </div>
+            )}
             {installments.map((inst, i) => (
               <div key={i} className="subcard-row" style={{ marginBottom: 'var(--space-2)' }}>
+                <span className="text-muted" style={{ width: 24 }}>
+                  {inst.installmentNumber}
+                </span>
                 <input
                   type="number"
+                  aria-label="Amount (Rs.)"
                   placeholder="Amount"
                   value={inst.amount}
                   onChange={(e) =>
@@ -185,7 +217,8 @@ function FeeStructureSection({ courseId }: { courseId: string }) {
                 />
                 <input
                   type="number"
-                  placeholder="Due offset (days)"
+                  aria-label="Due, in days after enrollment"
+                  placeholder="Days after enrollment"
                   value={inst.dueOffsetDays}
                   onChange={(e) =>
                     setInstallments((prev) =>
@@ -208,6 +241,14 @@ function FeeStructureSection({ courseId }: { courseId: string }) {
             >
               + Add installment
             </button>
+            {installments.length > 0 && (
+              <p
+                className={installmentsMismatch ? '' : 'text-muted'}
+                style={{ fontSize: 12, marginTop: 4, marginBottom: 0, ...(installmentsMismatch ? { color: 'var(--color-danger)' } : {}) }}
+              >
+                Installments total: {installmentsSum} {installmentsMismatch ? `(must equal ${totalAmount})` : '✓'}
+              </p>
+            )}
           </div>
 
           <div style={{ marginTop: 'var(--space-3)' }}>

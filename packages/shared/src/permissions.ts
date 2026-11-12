@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   { key: 'students.create', module: 'students', description: 'Add new students' },
   { key: 'students.edit', module: 'students', description: 'Edit student records' },
   { key: 'students.delete', module: 'students', description: 'Delete (soft-delete) student records' },
+  { key: 'students.remarks', module: 'students', description: 'View and add remarks on students' },
 
   // Courses
   { key: 'courses.view', module: 'courses', description: 'View courses and batches' },
@@ -32,6 +33,10 @@ export const PERMISSIONS = [
   { key: 'attendance.view', module: 'attendance', description: 'View attendance records and reports' },
   { key: 'attendance.mark', module: 'attendance', description: 'Mark daily attendance' },
   { key: 'attendance.edit', module: 'attendance', description: 'Edit previously marked attendance' },
+
+  // Staff attendance
+  { key: 'staff_attendance.view', module: 'staff_attendance', description: 'View staff attendance records' },
+  { key: 'staff_attendance.mark', module: 'staff_attendance', description: 'Mark daily staff attendance' },
 
   // Fee structure (admin-only by default, but permission-gated not role-hardcoded)
   { key: 'fees.structure.view', module: 'fees', description: 'View fee structures' },

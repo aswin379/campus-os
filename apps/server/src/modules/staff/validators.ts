@@ -1,18 +1,21 @@
 import { z } from 'zod';
 
+// A staff member has exactly one role — never zero (locked out of every
+// permission) and never more than one (an "Admin, Staff" account whose
+// effective permissions are confusingly the union of both).
 export const createStaffSchema = z.object({
   fullName: z.string().min(1),
   email: z.string().email(),
   phone: z.string().optional(),
   password: z.string().min(8),
-  roleIds: z.array(z.string().uuid()).min(1, 'Select at least one role'),
+  roleIds: z.array(z.string().uuid()).length(1, 'Select exactly one role'),
 });
 
 export const updateStaffSchema = z.object({
   fullName: z.string().min(1).optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  roleIds: z.array(z.string().uuid()).optional(),
+  roleIds: z.array(z.string().uuid()).length(1, 'Select exactly one role').optional(),
 });
 
 export const setActiveSchema = z.object({

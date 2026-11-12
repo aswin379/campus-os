@@ -29,11 +29,11 @@ async function buildResult(title: string, columns: ReportColumn[], rows: ReportR
 }
 
 const STUDENT_COLUMNS: ReportColumn[] = [
-  { key: 'admissionNumber', header: 'Admission #' },
-  { key: 'name', header: 'Name' },
-  { key: 'status', header: 'Status' },
-  { key: 'admissionDate', header: 'Admission Date' },
-  { key: 'city', header: 'City' },
+  { key: 'admissionNumber', header: 'Admission #', width: 1.2 },
+  { key: 'name', header: 'Name', width: 2 },
+  { key: 'status', header: 'Status', width: 1 },
+  { key: 'admissionDate', header: 'Admission Date', width: 1.2 },
+  { key: 'city', header: 'City', width: 1.2 },
 ];
 
 export async function getStudentReport(status: string | undefined, format: ExportFormat): Promise<ReportResult> {
@@ -49,12 +49,12 @@ export async function getStudentReport(status: string | undefined, format: Expor
 }
 
 const COURSE_COLUMNS: ReportColumn[] = [
-  { key: 'code', header: 'Code' },
-  { key: 'name', header: 'Name' },
-  { key: 'duration', header: 'Duration' },
-  { key: 'status', header: 'Status' },
-  { key: 'batchCount', header: 'Batches' },
-  { key: 'activeEnrollmentCount', header: 'Active Students' },
+  { key: 'code', header: 'Code', width: 1 },
+  { key: 'name', header: 'Name', width: 2.2 },
+  { key: 'duration', header: 'Duration', width: 1 },
+  { key: 'status', header: 'Status', width: 1 },
+  { key: 'batchCount', header: 'Batches', width: 1 },
+  { key: 'activeEnrollmentCount', header: 'Active Students', width: 1.3 },
 ];
 
 export async function getCourseReport(format: ExportFormat): Promise<ReportResult> {
@@ -71,14 +71,14 @@ export async function getCourseReport(format: ExportFormat): Promise<ReportResul
 }
 
 const FEE_COLLECTION_COLUMNS: ReportColumn[] = [
-  { key: 'receiptNumber', header: 'Receipt #' },
-  { key: 'date', header: 'Date' },
-  { key: 'admissionNumber', header: 'Admission #' },
-  { key: 'studentName', header: 'Student' },
-  { key: 'course', header: 'Course' },
-  { key: 'amount', header: 'Amount' },
-  { key: 'mode', header: 'Mode' },
-  { key: 'type', header: 'Type' },
+  { key: 'receiptNumber', header: 'Receipt #', width: 1.5 },
+  { key: 'date', header: 'Date', width: 1 },
+  { key: 'admissionNumber', header: 'Admission #', width: 1.1 },
+  { key: 'studentName', header: 'Student', width: 1.8 },
+  { key: 'course', header: 'Course', width: 2 },
+  { key: 'amount', header: 'Amount', width: 1 },
+  { key: 'mode', header: 'Mode', width: 0.9 },
+  { key: 'type', header: 'Type', width: 0.9 },
 ];
 
 export async function getFeeCollectionReport(fromDate: string, toDate: string, format: ExportFormat): Promise<ReportResult> {
@@ -98,15 +98,15 @@ export async function getFeeCollectionReport(fromDate: string, toDate: string, f
 }
 
 const PENDING_FEES_COLUMNS: ReportColumn[] = [
-  { key: 'admissionNumber', header: 'Admission #' },
-  { key: 'studentName', header: 'Student' },
-  { key: 'course', header: 'Course' },
-  { key: 'item', header: 'Item' },
-  { key: 'dueDate', header: 'Due Date' },
-  { key: 'amountDue', header: 'Amount Due' },
-  { key: 'amountPaid', header: 'Amount Paid' },
-  { key: 'amountPending', header: 'Amount Pending' },
-  { key: 'status', header: 'Status' },
+  { key: 'admissionNumber', header: 'Admission #', width: 1.1 },
+  { key: 'studentName', header: 'Student', width: 1.6 },
+  { key: 'course', header: 'Course', width: 1.8 },
+  { key: 'item', header: 'Item', width: 1.3 },
+  { key: 'dueDate', header: 'Due Date', width: 1 },
+  { key: 'amountDue', header: 'Amount Due', width: 1 },
+  { key: 'amountPaid', header: 'Amount Paid', width: 1 },
+  { key: 'amountPending', header: 'Amount Pending', width: 1.1 },
+  { key: 'status', header: 'Status', width: 0.9 },
 ];
 
 export async function getPendingFeesReport(format: ExportFormat): Promise<ReportResult> {

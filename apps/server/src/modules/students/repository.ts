@@ -34,6 +34,34 @@ export interface StudentContactRow {
   is_primary: boolean;
 }
 
+export interface StudentQualificationRow {
+  id: string;
+  student_id: string;
+  qualification_name: string;
+  institution: string | null;
+  board_or_university: string | null;
+  year_of_passing: string | null;
+  percentage_or_grade: string | null;
+  sequence: number;
+}
+
+export interface StudentQualificationInput {
+  qualificationName: string;
+  institution: string | null;
+  boardOrUniversity: string | null;
+  yearOfPassing: string | null;
+  percentageOrGrade: string | null;
+}
+
+export interface StudentRemarkRow {
+  id: string;
+  student_id: string;
+  remark: string;
+  created_by: string;
+  created_by_name: string;
+  created_at: string;
+}
+
 export interface StudentContactInput {
   contactType: string;
   relation: string | null;
@@ -67,6 +95,31 @@ async function replaceContacts(client: PoolClient, studentId: string, contacts: 
   }
 }
 
+async function replaceQualifications(
+  client: PoolClient,
+  studentId: string,
+  qualifications: StudentQualificationInput[],
+): Promise<void> {
+  await client.query(`delete from student_qualifications where student_id = ?`, [studentId]);
+  for (const [index, q] of qualifications.entries()) {
+    await client.query(
+      `insert into student_qualifications
+         (id, student_id, qualification_name, institution, board_or_university, year_of_passing, percentage_or_grade, sequence)
+       values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        crypto.randomUUID(),
+        studentId,
+        q.qualificationName,
+        q.institution,
+        q.boardOrUniversity,
+        q.yearOfPassing,
+        q.percentageOrGrade,
+        index,
+      ],
+    );
+  }
+}
+
 export interface CreateStudentInput {
   admissionNumber?: string;
   firstName: string;
@@ -82,6 +135,7 @@ export interface CreateStudentInput {
   state: string | null;
   pincode: string | null;
   contacts: StudentContactInput[];
+  qualifications: StudentQualificationInput[];
 }
 
 export async function createStudent(input: CreateStudentInput): Promise<StudentRow> {
@@ -122,6 +176,7 @@ export async function createStudent(input: CreateStudentInput): Promise<StudentR
     const { rows } = await client.query<StudentRow>(`select * from students where id = ?`, [id]);
     const student = rows[0]!;
     await replaceContacts(client, student.id, input.contacts);
+    await replaceQualifications(client, student.id, input.qualifications);
 
     await client.query('commit');
     return student;
@@ -148,6 +203,7 @@ export interface UpdateStudentInput {
   pincode?: string | null;
   status?: string;
   contacts?: StudentContactInput[];
+  qualifications?: StudentQualificationInput[];
 }
 
 /**
@@ -202,6 +258,9 @@ export async function updateStudent(id: string, input: UpdateStudentInput): Prom
     if (input.contacts) {
       await replaceContacts(client, id, input.contacts);
     }
+    if (input.qualifications) {
+      await replaceQualifications(client, id, input.qualifications);
+    }
 
     await client.query('commit');
     return student;
@@ -221,6 +280,33 @@ export async function getStudentById(id: string): Promise<StudentRow | null> {
 export async function getContactsForStudent(studentId: string): Promise<StudentContactRow[]> {
   const { rows } = await pool.query<StudentContactRow>(
     `select * from student_contacts where student_id = ? order by is_primary desc, contact_type`,
+    [studentId],
+  );
+  return rows;
+}
+
+export async function getQualificationsForStudent(studentId: string): Promise<StudentQualificationRow[]> {
+  const { rows } = await pool.query<StudentQualificationRow>(
+    `select * from student_qualifications where student_id = ? order by sequence`,
+    [studentId],
+  );
+  return rows;
+}
+
+export async function addStudentRemark(studentId: string, remark: string, createdBy: string): Promise<void> {
+  await pool.query(
+    `insert into student_remarks (id, student_id, remark, created_by) values (?, ?, ?, ?)`,
+    [crypto.randomUUID(), studentId, remark, createdBy],
+  );
+}
+
+export async function listStudentRemarks(studentId: string): Promise<StudentRemarkRow[]> {
+  const { rows } = await pool.query<StudentRemarkRow>(
+    `select r.id, r.student_id, r.remark, r.created_by, st.full_name as created_by_name, r.created_at
+     from student_remarks r
+     join staff st on st.id = r.created_by
+     where r.student_id = ?
+     order by r.created_at desc`,
     [studentId],
   );
   return rows;

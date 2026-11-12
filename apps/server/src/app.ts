@@ -11,6 +11,7 @@ import { permissionsRouter, rolesRouter, staffRouter } from './modules/staff/rou
 import { studentsRouter } from './modules/students/routes.js';
 import { courseBatchesRouter, coursesRouter, enrollmentsRouter } from './modules/courses/routes.js';
 import { attendanceRouter } from './modules/attendance/routes.js';
+import { staffAttendanceRouter } from './modules/staff-attendance/routes.js';
 import {
   feeDiscountsRouter,
   feePlansRouter,
@@ -63,6 +64,7 @@ export function createApp() {
   app.use('/api/v1/course-batches', courseBatchesRouter);
   app.use('/api/v1/enrollments', enrollmentsRouter);
   app.use('/api/v1/attendance', attendanceRouter);
+  app.use('/api/v1/staff-attendance', staffAttendanceRouter);
   app.use('/api/v1/fee-structures', feeStructuresRouter);
   app.use('/api/v1/fee-discounts', feeDiscountsRouter);
   app.use('/api/v1/fee-plans', feePlansRouter);

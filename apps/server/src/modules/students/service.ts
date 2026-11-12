@@ -30,13 +30,33 @@ export interface StudentDto {
     email: string | null;
     isPrimary: boolean;
   }[];
+  qualifications: QualificationDto[];
+}
+
+export interface QualificationDto {
+  qualificationName: string;
+  institution: string | null;
+  boardOrUniversity: string | null;
+  yearOfPassing: string | null;
+  percentageOrGrade: string | null;
+}
+
+export interface StudentRemarkDto {
+  id: string;
+  remark: string;
+  createdByName: string;
+  createdAt: string;
 }
 
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ER_DUP_ENTRY';
 }
 
-function toDto(row: repo.StudentRow, contacts: repo.StudentContactRow[]): StudentDto {
+function toDto(
+  row: repo.StudentRow,
+  contacts: repo.StudentContactRow[],
+  qualifications: repo.StudentQualificationRow[],
+): StudentDto {
   return {
     id: row.id,
     admissionNumber: row.admission_number,
@@ -64,7 +84,32 @@ function toDto(row: repo.StudentRow, contacts: repo.StudentContactRow[]): Studen
       email: c.email,
       isPrimary: c.is_primary,
     })),
+    qualifications: qualifications.map((q) => ({
+      qualificationName: q.qualification_name,
+      institution: q.institution,
+      boardOrUniversity: q.board_or_university,
+      yearOfPassing: q.year_of_passing,
+      percentageOrGrade: q.percentage_or_grade,
+    })),
   };
+}
+
+export interface StudentQualificationInput {
+  qualificationName: string;
+  institution?: string | null;
+  boardOrUniversity?: string | null;
+  yearOfPassing?: string | null;
+  percentageOrGrade?: string | null;
+}
+
+function normalizeQualifications(qualifications: StudentQualificationInput[]): repo.StudentQualificationInput[] {
+  return qualifications.map((q) => ({
+    qualificationName: q.qualificationName,
+    institution: q.institution || null,
+    boardOrUniversity: q.boardOrUniversity || null,
+    yearOfPassing: q.yearOfPassing || null,
+    percentageOrGrade: q.percentageOrGrade || null,
+  }));
 }
 
 export interface StudentContactInput {
@@ -90,14 +135,17 @@ function normalizeContacts(contacts: StudentContactInput[]): repo.StudentContact
 export async function listStudents(filters: { search?: string; status?: string }): Promise<StudentDto[]> {
   const rows = await repo.listStudents(filters);
   const contactsByStudent = await repo.getContactsForStudents(rows.map((r) => r.id));
-  return rows.map((row) => toDto(row, contactsByStudent.get(row.id) ?? []));
+  return rows.map((row) => toDto(row, contactsByStudent.get(row.id) ?? [], []));
 }
 
 export async function getStudent(id: string): Promise<StudentDto> {
   const row = await repo.getStudentById(id);
   if (!row) throw new HttpError(404, 'Student not found');
-  const contacts = await repo.getContactsForStudent(id);
-  return toDto(row, contacts);
+  const [contacts, qualifications] = await Promise.all([
+    repo.getContactsForStudent(id),
+    repo.getQualificationsForStudent(id),
+  ]);
+  return toDto(row, contacts, qualifications);
 }
 
 export async function createStudent(
@@ -117,6 +165,7 @@ export async function createStudent(
     state?: string;
     pincode?: string;
     contacts: StudentContactInput[];
+    qualifications?: StudentQualificationInput[];
   },
 ): Promise<StudentDto> {
   let created: repo.StudentRow;
@@ -136,6 +185,7 @@ export async function createStudent(
       state: input.state ?? null,
       pincode: input.pincode ?? null,
       contacts: normalizeContacts(input.contacts),
+      qualifications: normalizeQualifications(input.qualifications ?? []),
     });
   } catch (err) {
     if (isUniqueViolation(err)) throw new HttpError(409, 'A student with this admission number already exists');
@@ -171,6 +221,7 @@ export async function updateStudent(
     pincode?: string | null;
     status?: string;
     contacts?: StudentContactInput[];
+    qualifications?: StudentQualificationInput[];
   },
 ): Promise<StudentDto> {
   const before = await repo.getStudentById(id);
@@ -181,6 +232,7 @@ export async function updateStudent(
     updated = await repo.updateStudent(id, {
       ...input,
       contacts: input.contacts ? normalizeContacts(input.contacts) : undefined,
+      qualifications: input.qualifications ? normalizeQualifications(input.qualifications) : undefined,
     });
   } catch (err) {
     if (isUniqueViolation(err)) throw new HttpError(409, 'A student with this admission number already exists');
@@ -254,4 +306,24 @@ export async function getStudentPhoto(id: string): Promise<{ buffer: Buffer; key
   if (!student?.photo_key) return null;
   const buffer = await storage.read(student.photo_key);
   return { buffer, key: student.photo_key };
+}
+
+export async function listRemarks(studentId: string): Promise<StudentRemarkDto[]> {
+  const student = await repo.getStudentById(studentId);
+  if (!student) throw new HttpError(404, 'Student not found');
+  const rows = await repo.listStudentRemarks(studentId);
+  return rows.map((r) => ({ id: r.id, remark: r.remark, createdByName: r.created_by_name, createdAt: r.created_at }));
+}
+
+export async function addRemark(actorId: string, studentId: string, remark: string): Promise<void> {
+  const student = await repo.getStudentById(studentId);
+  if (!student) throw new HttpError(404, 'Student not found');
+  await repo.addStudentRemark(studentId, remark, actorId);
+  await recordAudit({
+    actorStaffId: actorId,
+    action: 'student.remark_add',
+    entityType: 'student',
+    entityId: studentId,
+    afterData: { remark },
+  });
 }

@@ -7,6 +7,7 @@ import { ChangePasswordPage } from './features/auth/ChangePasswordPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { RolesPage } from './features/staff/RolesPage';
 import { StaffListPage } from './features/staff/StaffListPage';
+import { StaffAttendancePage } from './features/staff/StaffAttendancePage';
 import { StudentFormPage } from './features/students/StudentFormPage';
 import { StudentListPage } from './features/students/StudentListPage';
 import { CourseDetailPage } from './features/courses/CourseDetailPage';
@@ -66,6 +67,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       show: hasPermission('notifications.manage') || hasPermission('notifications.view_logs'),
     },
     { to: '/staff', label: 'Staff', icon: '\u{1F464}', show: hasPermission('staff.view') },
+    { to: '/staff-attendance', label: 'Staff Attendance', icon: '✓', show: hasPermission('staff_attendance.view') },
     { to: '/roles', label: 'Roles', icon: '\u{1F511}', show: hasPermission('roles.manage') },
     { to: '/audit-log', label: 'Audit Log', icon: '\u{1F4CB}', show: hasPermission('audit.view') },
     { to: '/settings', label: 'Settings', icon: '⚙', show: hasPermission('settings.manage') },
@@ -338,6 +340,16 @@ export function App() {
           <RequireAuth permission="settings.manage">
             <Shell>
               <SettingsPage />
+            </Shell>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/staff-attendance"
+        element={
+          <RequireAuth permission="staff_attendance.view">
+            <Shell>
+              <StaffAttendancePage />
             </Shell>
           </RequireAuth>
         }
